@@ -1,0 +1,1076 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>进销存管理系统（联网版）</title>
+<style>
+  :root {
+    --card: #ffffff; --card-2: #fafbfe;
+    --line: #e3e8f1; --line-strong: #cfd6e4;
+    --text-0: #0f1b33; --text-1: #24345c; --text-2: #4f5f82; --text-3: #7b89a8;
+    --primary: #2f6bff; --primary-light: #e8f0ff;
+    --accent: #17c2b8; --gold: #d89b3a;
+    --danger: #e44d5c; --success: #21a864; --warn: #e07b1f;
+    --shadow-2: 0 6px 18px rgba(37, 54, 97, 0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: "Microsoft Yahei", "PingFang SC", "Segoe UI", sans-serif;
+    color: var(--text-1);
+    background: radial-gradient(1200px 500px at 0% 0%, rgba(47,107,255,.12), transparent 60%),
+                radial-gradient(900px 400px at 100% 0%, rgba(23,194,184,.1), transparent 55%),
+                linear-gradient(180deg,#f7f9fd 0%,#eef2f8 100%);
+    background-attachment: fixed;
+  }
+  .app { min-height: 100vh; }
+  .loading { position: fixed; inset: 0; background: rgba(255,255,255,.85); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--primary); z-index: 9999; flex-direction: column; gap: 12px; }
+  .loading.hide { display: none; }
+  .spinner { width: 40px; height: 40px; border-radius: 50%; border: 4px solid var(--primary-light); border-top-color: var(--primary); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .login-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(600px 300px at 30% 20%, rgba(47,107,255,.18), transparent 60%), radial-gradient(500px 300px at 80% 80%, rgba(23,194,184,.14), transparent 60%), rgba(255,255,255,.72); backdrop-filter: blur(4px); z-index: 10000; }
+  .login-box { width: 360px; padding: 28px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(37,54,97,.08); position: relative; overflow: hidden; }
+  .login-box::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+  .login-box h2 { text-align: center; color: var(--text-0); font-size: 22px; letter-spacing: 2px; margin-bottom: 8px; }
+  .login-sub { text-align: center; color: var(--text-3); font-size: 12px; margin-bottom: 22px; letter-spacing: 1px; }
+  .login-input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--card-2); color: var(--text-0); font-size: 15px; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .login-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); }
+  .err-text { color: #c53045; font-size: 13px; text-align: center; margin: 10px 0 4px; min-height: 18px; }
+  .login-btn { width: 100%; margin-top: 14px; padding: 12px; border-radius: 12px; border: none; cursor: pointer; font-size: 15px; font-weight: 700; letter-spacing: 2px; color: #fff; background: linear-gradient(135deg,#4a81ff,#2f6bff); box-shadow: 0 10px 24px rgba(47,107,255,.28); }
+  .login-btn:hover { filter: brightness(1.04); }
+  .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .main-wrap { display: none; padding: 18px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-2); margin-bottom: 16px; position: relative; overflow: hidden; }
+  .topbar::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--primary), var(--accent)); }
+  .system-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; color: var(--text-0); display: flex; align-items: center; gap: 10px; }
+  .system-title::before { content: ""; width: 10px; height: 10px; border-radius: 10px; background: linear-gradient(135deg,#4a81ff,#17c2b8); box-shadow: 0 0 0 4px var(--primary-light); }
+  .system-sub { color: var(--text-3); font-size: 12px; letter-spacing: 1px; margin-left: 10px; }
+  .user-pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2); font-size: 13px; color: var(--text-2); }
+  .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: conic-gradient(from 210deg,#4a81ff,#17c2b8,#d89b3a,#4a81ff); box-shadow: 0 0 0 3px var(--primary-light); }
+  .tab-group { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-2); margin-bottom: 16px; }
+  .tab-btn { flex: 1; min-width: 110px; padding: 12px 14px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--text-2); cursor: pointer; font-size: 14px; letter-spacing: 2px; transition: all .2s; }
+  .tab-btn:hover { color: var(--text-0); background: var(--primary-light); }
+  .tab-btn.active { color: #fff; background: linear-gradient(135deg,#4a81ff,#2f6bff); box-shadow: 0 10px 24px rgba(47,107,255,.28); }
+  .card { border-radius: 20px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-2); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 15px; font-weight: 700; color: var(--text-0); letter-spacing: 2px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .card-title::before { content: ""; width: 4px; height: 16px; border-radius: 3px; background: linear-gradient(180deg,var(--primary),var(--accent)); }
+  .flex-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .search-input { flex: 1; min-width: 200px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--card-2); color: var(--text-0); font-size: 14px; outline: none; }
+  .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 12px; border: 1px solid transparent; cursor: pointer; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #fff; background: linear-gradient(135deg,#9aa7bd,#6b7a99); white-space: nowrap; }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn-primary { background: linear-gradient(135deg,#4a81ff,#2f6bff); }
+  .btn-success { background: linear-gradient(135deg,#36cf8a,#21a864); }
+  .btn-warning { background: linear-gradient(135deg,#ffb35c,#e07b1f); }
+  .btn-danger { background: linear-gradient(135deg,#ff7385,#e44d5c); }
+  .btn-ghost { color: var(--text-1); background: var(--card-2); border-color: var(--line-strong); }
+  .btn-xs { padding: 4px 10px; font-size: 12px; }
+  .checkbox-label { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2); color: var(--text-1); cursor: pointer; font-size: 13px; }
+  .checkbox-label input { accent-color: var(--primary); }
+  .info-box { margin-left: auto; padding: 10px 14px; border-radius: 12px; border: 1px solid #f0d9a8; background: linear-gradient(135deg,#fff8e7,#fdf3e2); color: #8a5a00; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+  .info-box strong { color: #7a4a00; font-size: 15px; }
+  .table-wrap { border-radius: 16px; border: 1px solid var(--line); background: var(--card); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { padding: 14px 12px; text-align: center; color: #1a315b; font-weight: 700; letter-spacing: 2px; background: linear-gradient(180deg,#eef4ff,#f7f9fd); border-bottom: 1px solid var(--line-strong); }
+  tbody td { padding: 12px; text-align: center; color: var(--text-1); border-bottom: 1px dashed var(--line); }
+  tbody tr:hover { background: #f4f8ff; }
+  .warn { color: #c53045; font-weight: 700; }
+  input.input-cell { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card-2); color: var(--text-0); font-size: 13px; text-align: center; outline: none; }
+  input.input-cell:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); }
+  input.input-cell[readonly] { background: #f1f4fa; color: var(--text-3); cursor: not-allowed; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; animation: fade .25s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to {opacity:1;transform:translateY(0);} }
+  .tip-text { color: var(--text-3); font-size: 12px; margin: 6px 0 12px; letter-spacing: 1px; }
+  .pagination { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .page-info { margin-right: 12px; color: var(--text-2); font-size: 13px; }
+  @media (max-width: 900px) {
+    .main-wrap { padding: 10px; }
+    .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .info-box { margin-left: 0; width: 100%; }
+    .btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loadingMask">
+  <div class="spinner"></div>
+  <div id="loadingText">正在连接数据库…</div>
+</div>
+
+<div class="app">
+  <div class="login-modal" id="loginModal">
+    <div class="login-box">
+      <h2>进销存管理系统</h2>
+      <div class="login-sub">INVENTORY MANAGEMENT · 联网版</div>
+      <input class="login-input" id="loginPwd" type="password" placeholder="请输入登录密码" />
+      <div class="err-text" id="loginErr"></div>
+      <button class="login-btn" id="loginBtn" onclick="checkLogin()">登 录</button>
+    </div>
+  </div>
+
+  <div class="login-modal" id="newProductModal" style="display:none;">
+    <div class="login-box" style="width:420px;">
+      <h2 style="font-size:18px;">新建库存商品</h2>
+      <div class="login-sub">NEW PRODUCT</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:6px;">
+        <input class="login-input" id="npCode" placeholder="商品编号（必填，不可重复）" />
+        <input class="login-input" id="npName" placeholder="商品名称（必填）" />
+        <input class="login-input" id="npPosition" placeholder="配件仓位" />
+        <input class="login-input" id="npPrice" type="number" min="0" step="0.01" placeholder="批发价" />
+        <input class="login-input" id="npRetailPrice" type="number" min="0" step="0.01" placeholder="零售价" />
+        <input class="login-input" id="npWarn" type="number" min="0" placeholder="库存预警值" />
+      </div>
+      <div class="err-text" id="npErr"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn btn-ghost" style="flex:1;" onclick="closeNewProduct()">取消</button>
+        <button class="btn btn-success" style="flex:1;" onclick="saveNewProduct()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-modal" id="editProductModal" style="display:none;">
+    <div class="login-box" style="width:420px;">
+      <h2 style="font-size:18px;">修改库存商品</h2>
+      <div class="login-sub">EDIT PRODUCT</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:6px;">
+        <input class="login-input" id="epCode" placeholder="商品编号（必填）" />
+        <input class="login-input" id="epName" placeholder="商品名称（必填）" />
+        <input class="login-input" id="epPosition" placeholder="配件仓位" />
+        <input class="login-input" id="epPrice" type="number" min="0" step="0.01" placeholder="批发价" />
+        <input class="login-input" id="epRetailPrice" type="number" min="0" step="0.01" placeholder="零售价" />
+        <input class="login-input" id="epWarn" type="number" min="0" placeholder="库存预警值" />
+      </div>
+      <div class="err-text" id="epErr"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn btn-ghost" style="flex:1;" onclick="closeEditProduct()">取消</button>
+        <button class="btn btn-success" style="flex:1;" onclick="saveEditProduct()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-wrap" id="mainWrap">
+    <div class="topbar">
+      <div><div class="system-title">进销存管理系统 <span class="system-sub">SUPABASE · ONLINE</span></div></div>
+      <div class="user-pill"><div class="user-avatar"></div><span>管理员</span></div>
+    </div>
+
+    <div class="tab-group">
+      <button class="tab-btn active" data-tab="stock">库存总明细</button>
+      <button class="tab-btn" data-tab="in">批量入库</button>
+      <button class="tab-btn" data-tab="out">批量出库</button>
+      <button class="tab-btn" data-tab="purchase">采购建议</button>
+      <button class="tab-btn" data-tab="log">操作日志</button>
+    </div>
+
+    <div class="tab-content active" id="stock">
+      <div class="card">
+        <div class="card-title">库存总明细</div>
+        <div class="flex-row">
+          <input class="search-input" id="searchStock" placeholder="搜索商品编号 / 商品名称" />
+          <button class="btn btn-primary" onclick="searchStock()">搜索</button>
+          <label class="checkbox-label">
+            <input type="checkbox" id="onlyStock" onchange="stockPage=1;renderStock()" /> 仅显示库存&gt;0
+          </label>
+          <button class="btn btn-success" onclick="exportStock()">导出库存明细</button>
+          <button class="btn btn-primary" onclick="document.getElementById('importStockFile').click()">导入库存</button>
+          <button class="btn btn-success" onclick="openNewProduct()">+ 新建商品</button>
+          <button class="btn btn-danger" onclick="clearAllStock()">清空所有商品</button>
+          <div class="info-box">库存总金额：<strong id="totalAmount">0.00</strong></div>
+          <input type="file" id="importStockFile" accept=".csv" style="display:none" onchange="importStockFileHandler(event)" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>商品编号</th><th>商品名称</th><th>当前库存</th><th>配件仓位</th>
+              <th>批发价</th><th>零售价</th><th>库存预警值</th><th>小计金额</th><th>操作</th>
+            </tr></thead>
+            <tbody id="stockTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="page-info" id="stockPageInfo"></span>
+          <button class="btn btn-ghost" onclick="stockPage--;renderStock()" id="stockPrevBtn">上一页</button>
+          <button class="btn btn-ghost" onclick="stockPage++;renderStock()" id="stockNextBtn">下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="in">
+      <div class="card">
+        <div class="card-title">批量入库</div>
+        <div class="flex-row">
+          <input type="file" id="fileIn" accept=".csv" onchange="importInTable(event)" />
+          <button class="btn btn-success" onclick="confirmBatchIn()">确定批量入库</button>
+          <button class="btn btn-warning" onclick="resetInTable()">刷新</button>
+        </div>
+        <div class="tip-text">商品编号、入库数量必填；名称/批发价/仓位以库存为准。导入 CSV 时编号自动去空格。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>序列编号</th><th>商品编号</th><th>商品名称</th><th>入库数量</th>
+              <th>批发价</th><th>配件仓位</th><th>操作</th>
+            </tr></thead>
+            <tbody id="inTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="page-info" id="inPageInfo"></span>
+          <button class="btn btn-ghost" onclick="inPage--;renderInTable()" id="inPrevBtn">上一页</button>
+          <button class="btn btn-ghost" onclick="inPage++;renderInTable()" id="inNextBtn">下一页</button>
+        </div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="addInRow()">+ 新增入库行</button>
+      </div>
+    </div>
+
+    <div class="tab-content" id="out">
+      <div class="card">
+        <div class="card-title">批量出库</div>
+        <div class="flex-row">
+          <input type="file" id="fileOut" accept=".csv" onchange="importOutTable(event)" />
+          <button class="btn btn-success" onclick="confirmBatchOut()">确定批量出库</button>
+          <button class="btn btn-warning" onclick="resetOutTable()">刷新</button>
+        </div>
+        <div class="tip-text">商品编号、出库数量必填；名称/仓位以库存为准。导入 CSV 时编号自动去空格。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>序列编号</th><th>商品编号</th><th>商品名称</th><th>出库数量</th>
+              <th>配件仓位</th><th>操作</th>
+            </tr></thead>
+            <tbody id="outTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="page-info" id="outPageInfo"></span>
+          <button class="btn btn-ghost" onclick="outPage--;renderOutTable()" id="outPrevBtn">上一页</button>
+          <button class="btn btn-ghost" onclick="outPage++;renderOutTable()" id="outNextBtn">下一页</button>
+        </div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="addOutRow()">+ 新增出库行</button>
+      </div>
+    </div>
+
+    <div class="tab-content" id="purchase">
+      <div class="card">
+        <div class="card-title">采购建议</div>
+        <div class="flex-row">
+          <input class="search-input" id="searchPurchase" placeholder="搜索商品编号 / 商品名称" />
+          <button class="btn btn-primary" onclick="purchasePage=1;renderPurchase()">刷新</button>
+          <button class="btn btn-success" onclick="exportPurchase()">导出采购建议</button>
+          <label class="checkbox-label">
+            <input type="checkbox" id="onlyNeedBuy" onchange="purchasePage=1;renderPurchase()" /> 仅显示建议采购&gt;0
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>商品编号</th><th>商品名称</th><th>当前库存</th><th>库存预警值</th>
+              <th>月需求量</th><th>建议采购数量</th>
+            </tr></thead>
+            <tbody id="purchaseTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="page-info" id="purchasePageInfo"></span>
+          <button class="btn btn-ghost" onclick="purchasePage--;renderPurchase()" id="purchasePrevBtn">上一页</button>
+          <button class="btn btn-ghost" onclick="purchasePage++;renderPurchase()" id="purchaseNextBtn">下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="log">
+      <div class="card">
+        <div class="card-title">操作日志</div>
+        <div class="flex-row">
+          <input class="search-input" id="searchLog" placeholder="搜索日志内容" />
+          <button class="btn btn-primary" onclick="searchLog()">筛选</button>
+          <button class="btn btn-success" onclick="exportLog()">导出日志</button>
+          <button class="btn btn-danger" onclick="clearLog()">清空日志</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>时间</th><th>操作类型</th><th>商品编号</th><th>商品名称</th>
+              <th>变动数量</th><th>序列编号</th>
+            </tr></thead>
+            <tbody id="logTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="page-info" id="logPageInfo"></span>
+          <button class="btn btn-ghost" onclick="logPage--;renderLog()" id="logPrevBtn">上一页</button>
+          <button class="btn btn-ghost" onclick="logPage++;renderLog()" id="logNextBtn">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Supabase SDK ============ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ================================================================
+  // ? 替换成你自己的 Supabase 项目信息
+  // ================================================================
+  const SUPABASE_URL = 'https://qpccxwfjdobwrmxhsmho.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwY2N4d2ZqZG9id3JteGhzbWhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3Nzg4ODQsImV4cCI6MjEwNjM1NDg4NH0.hp2OtbJwvgOXbhOoTniHfmG9Os5Yj7LEv9kXV0dAk4E';
+  // ================================================================
+
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const PAGE_SIZE = 12;
+  const PAGE_SIZE_BATCH = 30;
+  let stockPage = 1, purchasePage = 1, inPage = 1, outPage = 1, logPage = 1;
+  let currentLogList = [];
+  let batchInRows = [], batchOutRows = [];
+  let inSeqCounter = 0, outSeqCounter = 0;
+  let editingId = null;
+
+  const LOGIN_PASSWORD = 'admin123';
+  let loginTryCount = 0;
+  const MAX_TRY = 3;
+  function checkLogin() {
+    const pwd = document.getElementById('loginPwd').value.trim();
+    const errDom = document.getElementById('loginErr');
+    loginTryCount++;
+    if (pwd === LOGIN_PASSWORD) {
+      document.getElementById('loginModal').style.display = 'none';
+      document.getElementById('mainWrap').style.display = 'block';
+      initSystem();
+    } else {
+      if (loginTryCount >= MAX_TRY) {
+        errDom.innerText = '密码错误次数过多，请刷新页面重试';
+        document.getElementById('loginPwd').disabled = true;
+        document.getElementById('loginBtn').disabled = true;
+      } else {
+        errDom.innerText = '密码错误，剩余 ' + (MAX_TRY - loginTryCount) + ' 次机会';
+      }
+    }
+  }
+  document.getElementById('loginPwd').addEventListener('keydown', e => { if (e.key === 'Enter') checkLogin(); });
+
+  let stockData = [];
+  let logData = [];
+  let usedSeqList = [];
+  let usedOutSeqList = [];
+  const ADMIN_PWD = '129495';
+
+  function showLoading(text) {
+    document.getElementById('loadingText').innerText = text || '处理中…';
+    document.getElementById('loadingMask').classList.remove('hide');
+  }
+  function hideLoading() { document.getElementById('loadingMask').classList.add('hide'); }
+  function pad3(n) { return String(n).padStart(3, '0'); }
+  function nowStamp() {
+    const d = new Date();
+    return d.getFullYear()
+      + String(d.getMonth() + 1).padStart(2, '0')
+      + String(d.getDate()).padStart(2, '0')
+      + String(d.getHours()).padStart(2, '0')
+      + String(d.getMinutes()).padStart(2, '0')
+      + String(d.getSeconds()).padStart(2, '0');
+  }
+  function generateInSeq() { inSeqCounter++; return 'IN-' + nowStamp() + '-' + pad3(inSeqCounter); }
+  function generateOutSeq() { outSeqCounter++; return 'OUT-' + nowStamp() + '-' + pad3(outSeqCounter); }
+  function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+  function formatQty(v) {
+    const n = Number(v);
+    if (isNaN(n)) return '0';
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(2);
+  }
+  function findColumn(header, keys) {
+    for (let c = 0; c < header.length; c++) {
+      const h = (header[c] || '').trim();
+      for (const k of keys) if (h.indexOf(k) > -1) return c;
+    }
+    return -1;
+  }
+  function decodeFileContent(buffer) {
+    try { const t = new TextDecoder('utf-8', { fatal: true }).decode(buffer); if (t.indexOf('\uFFFD') === -1) return t; } catch (e) {}
+    try { return new TextDecoder('gbk').decode(buffer); } catch (e) {}
+    try { return new TextDecoder('gb18030').decode(buffer); } catch (e) {}
+    return new TextDecoder('utf-8').decode(buffer);
+  }
+  function readCsvFile(file, cb) {
+    const r = new FileReader();
+    r.onload = e => cb(decodeFileContent(e.target.result));
+    r.readAsArrayBuffer(file);
+  }
+
+  async function initSystem() {
+    showLoading('正在加载数据…');
+    try {
+      const { data: stock, error: e1 } = await db.from('stock').select('*').order('id');
+      if (e1) throw e1;
+      stockData = stock || [];
+
+      const { data: logs, error: e2 } = await db.from('logs').select('*').order('created_at', { ascending: false });
+      if (e2) throw e2;
+      logData = logs || [];
+
+      const { data: seqs, error: e3 } = await db.from('used_seqs').select('*');
+      if (e3) throw e3;
+      usedSeqList = (seqs || []).filter(s => s.kind === 'in').map(s => s.seq);
+      usedOutSeqList = (seqs || []).filter(s => s.kind === 'out').map(s => s.seq);
+
+      inSeqCounter = 0; outSeqCounter = 0;
+      usedSeqList.forEach(s => { const m = String(s).match(/-(\d+)$/); if (m) inSeqCounter = Math.max(inSeqCounter, Number(m[1])); });
+      usedOutSeqList.forEach(s => { const m = String(s).match(/-(\d+)$/); if (m) outSeqCounter = Math.max(outSeqCounter, Number(m[1])); });
+
+      stockPage = 1; purchasePage = 1; inPage = 1; outPage = 1; logPage = 1;
+      currentLogList = logData;
+      batchInRows = []; batchOutRows = [];
+      addInRow(); addOutRow();
+      renderStock(); renderLog(); renderInTable(); renderOutTable();
+
+      subscribeRealtime();
+    } catch (err) {
+      alert('加载数据失败：' + err.message + '\n请检查 Supabase 配置与建表是否完成。');
+    } finally {
+      hideLoading();
+    }
+  }
+
+  let channel = null;
+  function subscribeRealtime() {
+    if (channel) db.removeChannel(channel);
+    channel = db
+      .channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock' }, async () => {
+        const { data } = await db.from('stock').select('*').order('id');
+        stockData = data || [];
+        renderStock(); renderPurchase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, async () => {
+        const { data } = await db.from('logs').select('*').order('created_at', { ascending: false });
+        logData = data || [];
+        currentLogList = logData;
+        renderLog();
+      })
+      .subscribe();
+  }
+
+  function goTab(id) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="' + id + '"]').classList.add('active');
+    document.getElementById(id).classList.add('active');
+    if (id === 'purchase') { purchasePage = 1; renderPurchase(); }
+    if (id === 'stock') { stockPage = 1; renderStock(); }
+    if (id === 'in') { inPage = 1; renderInTable(); }
+    if (id === 'out') { outPage = 1; renderOutTable(); }
+    if (id === 'log') { logPage = 1; currentLogList = logData; renderLog(); }
+  }
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', function () { goTab(this.dataset.tab); }));
+
+  function renderStock() {
+    const tb = document.getElementById('stockTableBody');
+    tb.innerHTML = '';
+    let totalAmt = 0;
+    const onlyStock = document.getElementById('onlyStock').checked;
+    let list = stockData.filter(s => !onlyStock || Number(s.stock) > 0);
+    list.sort((a, b) => (b.warn || 0) - (a.warn || 0));
+    list.forEach(item => totalAmt += Number(item.stock) * Number(item.price));
+    const total = list.length;
+    const maxPage = Math.ceil(total / PAGE_SIZE);
+    if (stockPage > maxPage) stockPage = maxPage || 1;
+    if (stockPage < 1) stockPage = 1;
+    const start = (stockPage - 1) * PAGE_SIZE;
+    list.slice(start, start + PAGE_SIZE).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.code}</td>
+        <td>${item.name}</td>
+        <td>${formatQty(item.stock)}</td>
+        <td><input class="input-cell" value="${item.position || ''}" onchange="updateStockField(${item.id},'position',this.value)"></td>
+        <td>${Number(item.price).toFixed(2)}</td>
+        <td><input class="input-cell" type="number" min="0" step="0.01" value="${item.retail_price || 0}" onchange="updateStockField(${item.id},'retail_price',this.value)"></td>
+        <td><input class="input-cell" type="number" min="0" value="${item.warn || 0}" onchange="updateStockField(${item.id},'warn',this.value)"></td>
+        <td>${(item.stock * item.price).toFixed(2)}</td>
+        <td><button class="btn btn-primary btn-xs" onclick="openEditProduct(${item.id})">修改</button></td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('totalAmount').innerText = totalAmt.toFixed(2);
+    document.getElementById('stockPageInfo').innerText = `共${total}条，第${stockPage}/${maxPage || 1}页`;
+    document.getElementById('stockPrevBtn').disabled = stockPage <= 1;
+    document.getElementById('stockNextBtn').disabled = stockPage >= maxPage;
+  }
+
+  function searchStock() {
+    const kw = document.getElementById('searchStock').value.trim().toLowerCase();
+    const onlyStock = document.getElementById('onlyStock').checked;
+    const filtered = stockData.filter(s =>
+      (s.code.toLowerCase().includes(kw) || s.name.toLowerCase().includes(kw)) &&
+      (!onlyStock || Number(s.stock) > 0)
+    );
+    const tb = document.getElementById('stockTableBody');
+    tb.innerHTML = '';
+    let totalAmt = 0;
+    filtered.forEach(item => totalAmt += Number(item.stock) * Number(item.price));
+    stockPage = 1;
+    filtered.slice(0, PAGE_SIZE).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.code}</td><td>${item.name}</td><td>${formatQty(item.stock)}</td>
+        <td><input class="input-cell" value="${item.position || ''}" onchange="updateStockField(${item.id},'position',this.value)"></td>
+        <td>${Number(item.price).toFixed(2)}</td>
+        <td><input class="input-cell" type="number" min="0" step="0.01" value="${item.retail_price || 0}" onchange="updateStockField(${item.id},'retail_price',this.value)"></td>
+        <td><input class="input-cell" type="number" min="0" value="${item.warn || 0}" onchange="updateStockField(${item.id},'warn',this.value)"></td>
+        <td>${(item.stock * item.price).toFixed(2)}</td>
+        <td><button class="btn btn-primary btn-xs" onclick="openEditProduct(${item.id})">修改</button></td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('totalAmount').innerText = totalAmt.toFixed(2);
+    document.getElementById('stockPageInfo').innerText = `共${filtered.length}条（搜索）`;
+  }
+
+  async function updateStockField(id, field, value) {
+    const payload = { [field]: (field === 'position') ? value : Number(value) };
+    const { error } = await db.from('stock').update(payload).eq('id', id);
+    if (error) { alert('更新失败：' + error.message); return; }
+    const item = stockData.find(s => s.id === id);
+    if (item) item[field] = payload[field];
+    renderStock();
+  }
+
+  function openNewProduct() {
+    ['npCode','npName','npPosition','npPrice','npRetailPrice','npWarn'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('npErr').innerText = '';
+    document.getElementById('newProductModal').style.display = 'flex';
+    document.getElementById('npCode').focus();
+  }
+  function closeNewProduct() { document.getElementById('newProductModal').style.display = 'none'; }
+
+  async function saveNewProduct() {
+    const code = document.getElementById('npCode').value.trim().replace(/\s+/g, '');
+    const name = document.getElementById('npName').value.trim();
+    const position = document.getElementById('npPosition').value.trim();
+    const price = Number(document.getElementById('npPrice').value) || 0;
+    const retailPrice = Number(document.getElementById('npRetailPrice').value) || 0;
+    const warn = Number(document.getElementById('npWarn').value) || 0;
+    const errDom = document.getElementById('npErr');
+
+    if (!code) { errDom.innerText = '商品编号不能为空'; return; }
+    if (!name) { errDom.innerText = '商品名称不能为空'; return; }
+    if (stockData.find(s => s.code === code)) { errDom.innerText = '商品编号已存在'; return; }
+
+    showLoading('保存中…');
+    const { error } = await db.from('stock').insert({
+      code, name, stock: 0, position, price, retail_price: retailPrice, warn
+    });
+    await db.from('logs').insert({
+      time: new Date().toLocaleString(), type: '新建商品', code, name, num: 0, seq: 'NEW'
+    });
+    hideLoading();
+    if (error) { errDom.innerText = '创建失败：' + error.message; return; }
+
+    const { data } = await db.from('stock').select('*').order('id');
+    stockData = data || [];
+    renderStock();
+    closeNewProduct();
+    alert('商品创建成功');
+  }
+
+  function openEditProduct(id) {
+    const item = stockData.find(s => s.id === id);
+    if (!item) return;
+    editingId = id;
+    document.getElementById('epCode').value = item.code;
+    document.getElementById('epName').value = item.name;
+    document.getElementById('epPosition').value = item.position || '';
+    document.getElementById('epPrice').value = item.price || 0;
+    document.getElementById('epRetailPrice').value = item.retail_price || 0;
+    document.getElementById('epWarn').value = item.warn || 0;
+    document.getElementById('epErr').innerText = '';
+    document.getElementById('editProductModal').style.display = 'flex';
+  }
+  function closeEditProduct() { document.getElementById('editProductModal').style.display = 'none'; editingId = null; }
+
+  async function saveEditProduct() {
+    if (!editingId) return;
+    const code = document.getElementById('epCode').value.trim().replace(/\s+/g, '');
+    const name = document.getElementById('epName').value.trim();
+    const position = document.getElementById('epPosition').value.trim();
+    const price = Number(document.getElementById('epPrice').value) || 0;
+    const retailPrice = Number(document.getElementById('epRetailPrice').value) || 0;
+    const warn = Number(document.getElementById('epWarn').value) || 0;
+    const errDom = document.getElementById('epErr');
+
+    if (!code) { errDom.innerText = '商品编号不能为空'; return; }
+    if (!name) { errDom.innerText = '商品名称不能为空'; return; }
+    if (stockData.find(s => s.code === code && s.id !== editingId)) { errDom.innerText = '编号已被其他商品使用'; return; }
+
+    showLoading('保存中…');
+    const { error } = await db.from('stock').update({
+      code, name, position, price, retail_price: retailPrice, warn
+    }).eq('id', editingId);
+    await db.from('logs').insert({
+      time: new Date().toLocaleString(), type: '修改商品', code, name, num: 0, seq: 'EDIT'
+    });
+    hideLoading();
+    if (error) { errDom.innerText = '保存失败：' + error.message; return; }
+
+    const { data } = await db.from('stock').select('*').order('id');
+    stockData = data || [];
+    renderStock();
+    closeEditProduct();
+  }
+
+  function renderInTable() {
+    const tb = document.getElementById('inTableBody');
+    tb.innerHTML = '';
+    const total = batchInRows.length;
+    const maxPage = Math.ceil(total / PAGE_SIZE_BATCH);
+    if (inPage > maxPage) inPage = maxPage || 1;
+    if (inPage < 1) inPage = 1;
+    const start = (inPage - 1) * PAGE_SIZE_BATCH;
+    batchInRows.slice(start, start + PAGE_SIZE_BATCH).forEach((row, idx) => {
+      const realIndex = start + idx;
+      const tr = document.createElement('tr');
+      if (row.error) tr.style.background = '#fdecee';
+      tr.innerHTML = `
+        <td><input class="input-cell" readonly value="${row.seq}">
+          ${row.error ? `<div style="color:#c53045;font-size:12px;margin-top:4px;">${row.error}</div>` : ''}</td>
+        <td><input class="input-cell" value="${row.code}" onblur="batchInRows[${realIndex}].code=this.value;autoFillIn(${realIndex})"></td>
+        <td><input class="input-cell" readonly value="${row.name}"></td>
+        <td><input class="input-cell" type="number" min="0" value="${row.num}" oninput="batchInRows[${realIndex}].num=Number(this.value)"></td>
+        <td><input class="input-cell" readonly value="${row.price}"></td>
+        <td><input class="input-cell" readonly value="${row.position}"></td>
+        <td><button class="btn btn-danger btn-xs" onclick="delInRow(${realIndex})">删除</button></td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('inPageInfo').innerText = `共${total}条，第${inPage}/${maxPage || 1}页`;
+    document.getElementById('inPrevBtn').disabled = inPage <= 1;
+    document.getElementById('inNextBtn').disabled = inPage >= maxPage;
+  }
+  function addInRow() {
+    batchInRows.push({ seq: generateInSeq(), code: '', name: '', num: 0, price: 0, position: '', error: '', isExisting: false });
+    renderInTable();
+  }
+  function delInRow(i) {
+    batchInRows.splice(i, 1);
+    if (batchInRows.length === 0) addInRow();
+    renderInTable();
+  }
+  function resetInTable() { batchInRows = []; inPage = 1; addInRow(); renderInTable(); document.getElementById('fileIn').value = ''; }
+  function autoFillIn(i) {
+    const row = batchInRows[i]; if (!row) return;
+    const code = (row.code || '').replace(/\s+/g, '');
+    row.code = code;
+    const item = stockData.find(s => s.code === code);
+    if (item) { row.name = item.name; row.price = item.price; row.position = item.position || ''; row.error = ''; }
+    else { row.name = ''; row.price = 0; row.position = ''; row.error = code ? '商品不存在，请先在库存总明细中创建该商品' : ''; }
+    renderInTable();
+  }
+  async function confirmBatchIn() {
+    const now = new Date().toLocaleString();
+    const successRows = [], failRows = [];
+
+    showLoading('正在入库…');
+    for (const r of batchInRows) {
+      const seq = (r.seq || '').trim();
+      const code = (r.code || '').replace(/\s+/g, '');
+      const num = Number(r.num);
+      let err = '';
+      if (!code && (!num || num === 0)) continue;
+      if (!code) err = '商品编号不能为空';
+      else if (isNaN(num) || num <= 0) err = '入库数量必须大于0';
+      else if (usedSeqList.includes(seq)) err = `序列号【${seq}】已入库`;
+
+      let find = null;
+      if (!err) {
+        find = stockData.find(s => s.code === code);
+        if (!find) err = `商品【${code}】不存在`;
+      }
+
+      if (err) { r.error = err; failRows.push(r); continue; }
+
+      const newStock = round2(Number(find.stock) + num);
+      const { error: e1 } = await db.from('stock').update({ stock: newStock }).eq('id', find.id);
+      if (e1) { r.error = '更新库存失败：' + e1.message; failRows.push(r); continue; }
+
+      const { error: e2 } = await db.from('logs').insert({
+        time: now, type: '批量入库', code, name: find.name, num, seq
+      });
+      if (e2) { r.error = '写日志失败：' + e2.message; failRows.push(r); continue; }
+
+      await db.from('used_seqs').insert({ seq, kind: 'in' });
+      find.stock = newStock;
+      usedSeqList.push(seq);
+      successRows.push(r);
+    }
+    hideLoading();
+
+    const { data } = await db.from('stock').select('*').order('id');
+    stockData = data || [];
+    renderStock();
+
+    batchInRows = failRows;
+    inPage = 1;
+    if (batchInRows.length === 0) { addInRow(); alert('批量入库成功，共 ' + successRows.length + ' 条'); }
+    else { renderInTable(); alert('入库完成：成功 ' + successRows.length + ' 条，失败 ' + failRows.length + ' 条，失败行保留标红。'); }
+
+    const { data: logs } = await db.from('logs').select('*').order('created_at', { ascending: false });
+    logData = logs || []; currentLogList = logData; logPage = 1; renderLog();
+  }
+
+  function renderOutTable() {
+    const tb = document.getElementById('outTableBody');
+    tb.innerHTML = '';
+    const total = batchOutRows.length;
+    const maxPage = Math.ceil(total / PAGE_SIZE_BATCH);
+    if (outPage > maxPage) outPage = maxPage || 1;
+    if (outPage < 1) outPage = 1;
+    const start = (outPage - 1) * PAGE_SIZE_BATCH;
+    batchOutRows.slice(start, start + PAGE_SIZE_BATCH).forEach((row, idx) => {
+      const realIndex = start + idx;
+      const tr = document.createElement('tr');
+      if (row.error) tr.style.background = '#fdecee';
+      tr.innerHTML = `
+        <td><input class="input-cell" readonly value="${row.seq}">
+          ${row.error ? `<div style="color:#c53045;font-size:12px;margin-top:4px;">${row.error}</div>` : ''}</td>
+        <td><input class="input-cell" value="${row.code}" onblur="batchOutRows[${realIndex}].code=this.value;autoFillOut(${realIndex})"></td>
+        <td><input class="input-cell" readonly value="${row.name}"></td>
+        <td><input class="input-cell" type="number" min="0" value="${row.num}" oninput="batchOutRows[${realIndex}].num=Number(this.value)"></td>
+        <td><input class="input-cell" readonly value="${row.position}"></td>
+        <td><button class="btn btn-danger btn-xs" onclick="delOutRow(${realIndex})">删除</button></td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('outPageInfo').innerText = `共${total}条，第${outPage}/${maxPage || 1}页`;
+    document.getElementById('outPrevBtn').disabled = outPage <= 1;
+    document.getElementById('outNextBtn').disabled = outPage >= maxPage;
+  }
+  function addOutRow() {
+    batchOutRows.push({ seq: generateOutSeq(), code: '', name: '', num: 0, position: '', error: '' });
+    renderOutTable();
+  }
+  function delOutRow(i) {
+    batchOutRows.splice(i, 1);
+    if (batchOutRows.length === 0) addOutRow();
+    renderOutTable();
+  }
+  function resetOutTable() { batchOutRows = []; outPage = 1; addOutRow(); renderOutTable(); document.getElementById('fileOut').value = ''; }
+  function autoFillOut(i) {
+    const row = batchOutRows[i]; if (!row) return;
+    const code = (row.code || '').replace(/\s+/g, '');
+    row.code = code;
+    const item = stockData.find(s => s.code === code);
+    if (item) {
+      row.name = item.name; row.position = item.position || '';
+      if (!item.stock || Number(item.stock) <= 0) row.error = '库存为 0，无法出库';
+      else row.error = '';
+    } else { row.name = ''; row.position = ''; row.error = code ? '商品不存在' : ''; }
+    renderOutTable();
+  }
+  async function confirmBatchOut() {
+    const now = new Date().toLocaleString();
+    const successRows = [], failRows = [];
+    const snapshot = {};
+    stockData.forEach(s => snapshot[s.code] = Number(s.stock));
+
+    showLoading('正在出库…');
+    for (const r of batchOutRows) {
+      const seq = (r.seq || '').trim();
+      const code = (r.code || '').replace(/\s+/g, '');
+      const num = Number(r.num);
+      let err = '';
+      if (!code && (!num || num === 0)) continue;
+      if (!code) err = '商品编号不能为空';
+      else if (isNaN(num) || num <= 0) err = '出库数量必须大于0';
+      else if (usedOutSeqList.includes(seq)) err = `序列号【${seq}】已出库`;
+
+      let find = null;
+      if (!err) {
+        find = stockData.find(s => s.code === code);
+        if (!find) err = `商品【${code}】不存在`;
+        else if (snapshot[code] < num && Math.abs(snapshot[code] - num) > 0.0001) {
+          err = `库存不足：现有 ${formatQty(snapshot[code])}，需出库 ${formatQty(num)}`;
+        }
+      }
+
+      if (err) { r.error = err; failRows.push(r); continue; }
+
+      snapshot[code] = round2(snapshot[code] - num);
+      const newStock = round2(Number(find.stock) - num);
+      const { error: e1 } = await db.from('stock').update({ stock: newStock }).eq('id', find.id);
+      if (e1) { r.error = '更新库存失败：' + e1.message; failRows.push(r); continue; }
+
+      const { error: e2 } = await db.from('logs').insert({
+        time: now, type: '批量出库', code, name: find.name, num: -num, seq
+      });
+      if (e2) { r.error = '写日志失败：' + e2.message; failRows.push(r); continue; }
+
+      await db.from('used_seqs').insert({ seq, kind: 'out' });
+      find.stock = newStock;
+      usedOutSeqList.push(seq);
+      successRows.push(r);
+    }
+    hideLoading();
+
+    const { data } = await db.from('stock').select('*').order('id');
+    stockData = data || [];
+    renderStock();
+
+    batchOutRows = failRows;
+    outPage = 1;
+    if (batchOutRows.length === 0) { addOutRow(); alert('批量出库成功，共 ' + successRows.length + ' 条'); }
+    else { renderOutTable(); alert('出库完成：成功 ' + successRows.length + ' 条，失败 ' + failRows.length + ' 条，失败行保留标红。'); }
+
+    const { data: logs } = await db.from('logs').select('*').order('created_at', { ascending: false });
+    logData = logs || []; currentLogList = logData; logPage = 1; renderLog();
+  }
+
+  function calcMonthOutQty() {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    const map = {};
+    logData.forEach(log => {
+      if (log.num >= 0) return;
+      const d = new Date(log.time);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        const code = log.code;
+        map[code] = round2((map[code] || 0) + Math.abs(log.num));
+      }
+    });
+    return map;
+  }
+  function renderPurchase() {
+    const tb = document.getElementById('purchaseTableBody');
+    tb.innerHTML = '';
+    const kw = document.getElementById('searchPurchase').value.trim().toLowerCase();
+    const onlyNeed = document.getElementById('onlyNeedBuy').checked;
+    const monthOut = calcMonthOutQty();
+    const fullList = [];
+    stockData.filter(s => s.code.toLowerCase().includes(kw) || s.name.toLowerCase().includes(kw)).forEach(item => {
+      const warnVal = Number(item.warn) || 0;
+      let sug = round2(warnVal - Number(item.stock));
+      if (sug < 0) sug = 0;
+      const mn = monthOut[item.code] || 0;
+      if (onlyNeed && sug <= 0) return;
+      fullList.push({ item, warnVal, sug, mn });
+    });
+    const total = fullList.length;
+    const maxPage = Math.ceil(total / PAGE_SIZE);
+    if (purchasePage > maxPage) purchasePage = maxPage || 1;
+    if (purchasePage < 1) purchasePage = 1;
+    const start = (purchasePage - 1) * PAGE_SIZE;
+    fullList.slice(start, start + PAGE_SIZE).forEach(row => {
+      const warnClass = (Number(row.item.stock) <= row.warnVal) ? 'warn' : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${row.item.code}</td><td>${row.item.name}</td>
+        <td class="${warnClass}">${formatQty(row.item.stock)}</td>
+        <td>${formatQty(row.warnVal)}</td>
+        <td>${formatQty(row.mn)}</td>
+        <td class="${warnClass}">${formatQty(row.sug)}</td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('purchasePageInfo').innerText = `共${total}条，第${purchasePage}/${maxPage || 1}页`;
+    document.getElementById('purchasePrevBtn').disabled = purchasePage <= 1;
+    document.getElementById('purchaseNextBtn').disabled = purchasePage >= maxPage;
+  }
+
+  function renderLog(list) {
+    if (list !== undefined) { currentLogList = list; logPage = 1; }
+    else if (currentLogList.length === 0) currentLogList = logData;
+    const tb = document.getElementById('logTableBody'); tb.innerHTML = '';
+    const sorted = currentLogList.slice().sort((a, b) => {
+      const ta = new Date(a.time).getTime(), tb2 = new Date(b.time).getTime();
+      if (isNaN(ta) && isNaN(tb2)) return 0;
+      if (isNaN(ta)) return 1;
+      if (isNaN(tb2)) return -1;
+      return tb2 - ta;
+    });
+    const total = sorted.length;
+    const maxPage = Math.ceil(total / PAGE_SIZE);
+    if (logPage > maxPage) logPage = maxPage || 1;
+    if (logPage < 1) logPage = 1;
+    const start = (logPage - 1) * PAGE_SIZE;
+    sorted.slice(start, start + PAGE_SIZE).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${item.time}</td><td>${item.type}</td><td>${item.code}</td>
+        <td>${item.name}</td><td>${item.num}</td><td>${item.seq || ''}</td>`;
+      tb.appendChild(tr);
+    });
+    document.getElementById('logPageInfo').innerText = `共${total}条，第${logPage}/${maxPage || 1}页`;
+    document.getElementById('logPrevBtn').disabled = logPage <= 1;
+    document.getElementById('logNextBtn').disabled = logPage >= maxPage;
+  }
+  function searchLog() {
+    const kw = document.getElementById('searchLog').value.trim().toLowerCase();
+    renderLog(logData.filter(l => JSON.stringify(l).toLowerCase().includes(kw)));
+  }
+
+  function importInTable(e) {
+    const f = e.target.files[0]; if (!f) return;
+    readCsvFile(f, content => {
+      const lines = content.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length <= 1) { alert('CSV 没有有效数据行'); e.target.value = ''; return; }
+      const header = lines[0].split(',').map(s => s.trim());
+      let colCode = findColumn(header, ['商品编号', '商品编码', '编号', 'code']);
+      let colNum = findColumn(header, ['入库数量', '入库数', '数量', 'num']);
+      if (colCode === -1) colCode = (header[0] || '').startsWith('IN-') ? 1 : 0;
+      if (colNum === -1) colNum = colCode + 1;
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const arr = lines[i].split(',').map(s => s.trim());
+        if (arr.length < Math.max(colCode, colNum) + 1) continue;
+        const code = (arr[colCode] || '').replace(/\s+/g, '');
+        const num = Number(arr[colNum] || 0);
+        const item = stockData.find(s => s.code === code);
+        rows.push({ seq: generateInSeq(), code, name: item ? item.name : '', num,
+          price: item ? item.price : 0, position: item ? (item.position || '') : '',
+          error: item ? '' : '商品不存在', isExisting: !!item });
+      }
+      if (!rows.length) { alert('无有效数据'); e.target.value = ''; return; }
+      batchInRows = batchInRows.concat(rows); inPage = 1; renderInTable();
+      if (confirm('已导入 ' + rows.length + ' 条，是否立即执行入库？')) confirmBatchIn();
+      e.target.value = '';
+    });
+  }
+  function importOutTable(e) {
+    const f = e.target.files[0]; if (!f) return;
+    readCsvFile(f, content => {
+      const lines = content.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length <= 1) { alert('CSV 没有有效数据行'); e.target.value = ''; return; }
+      const header = lines[0].split(',').map(s => s.trim());
+      let colCode = findColumn(header, ['商品编号', '商品编码', '编号', 'code']);
+      let colNum = findColumn(header, ['出库数量', '出库数', '数量', 'num']);
+      if (colCode === -1) colCode = (header[0] || '').startsWith('OUT-') ? 1 : 0;
+      if (colNum === -1) colNum = colCode + 1;
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const arr = lines[i].split(',').map(s => s.trim());
+        if (arr.length < Math.max(colCode, colNum) + 1) continue;
+        const code = (arr[colCode] || '').replace(/\s+/g, '');
+        const num = Number(arr[colNum] || 0);
+        const item = stockData.find(s => s.code === code);
+        rows.push({ seq: generateOutSeq(), code, name: item ? item.name : '', num,
+          position: item ? (item.position || '') : '',
+          error: item ? '' : '商品不存在' });
+      }
+      if (!rows.length) { alert('无有效数据'); e.target.value = ''; return; }
+      batchOutRows = batchOutRows.concat(rows); outPage = 1; renderOutTable();
+      if (confirm('已导入 ' + rows.length + ' 条，是否立即执行出库？')) confirmBatchOut();
+      e.target.value = '';
+    });
+  }
+
+  function importStockFileHandler(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const pwd = prompt('请输入权限密码：');
+    if (pwd !== ADMIN_PWD) { alert('密码错误'); e.target.value = ''; return; }
+    if (!confirm('将覆盖所有库存，确认？\n列顺序：编号,名称,库存,仓位,批发价,零售价,预警值')) { e.target.value = ''; return; }
+    readCsvFile(file, async content => {
+      const lines = content.split(/\r?\n/).filter(l => l.trim());
+      const arr = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length < 7) continue;
+        const code = cols[0].replace(/\s+/g, '');
+        const name = cols[1].trim();
+        const stock = Number(cols[2]);
+        const position = cols[3].trim();
+        const price = Number(cols[4]);
+        const retail_price = Number(cols[5]) || 0;
+        const warn = Number(cols[6]);
+        if (!code || !name || isNaN(stock) || isNaN(price) || isNaN(warn)) continue;
+        arr.push({ code, name, stock: round2(stock), position, price, retail_price, warn });
+      }
+      if (!arr.length) { alert('无有效数据'); e.target.value = ''; return; }
+      showLoading('正在导入…');
+      await db.from('stock').delete().neq('id', 0);
+      const { error } = await db.from('stock').insert(arr);
+      await db.from('logs').insert({
+        time: new Date().toLocaleString(), type: '批量导入库存（覆盖全部）',
+        code: 'ALL', name: '导入CSV库存数据', num: 0, seq: 'IMPORT'
+      });
+      hideLoading();
+      if (error) { alert('导入失败：' + error.message); return; }
+      const { data } = await db.from('stock').select('*').order('id');
+      stockData = data || [];
+      renderStock();
+      alert('导入成功，共 ' + arr.length + ' 条');
+      e.target.value = '';
+    });
+  }
+
+  async function clearAllStock() {
+    const pwd = prompt('请输入权限密码：');
+    if (pwd !== ADMIN_PWD) return alert('密码错误');
+    if (!confirm('确认清空所有商品？不可恢复！')) return;
+    showLoading('清空中…');
+    await db.from('stock').delete().neq('id', 0);
+    await db.from('logs').insert({
+      time: new Date().toLocaleString(), type: '清空全部商品数据',
+      code: 'ALL', name: '清空所有商品记录', num: 0, seq: 'CLEAR'
+    });
+    hideLoading();
+    const { data } = await db.from('stock').select('*').order('id');
+    stockData = data || [];
+    renderStock();
+    alert('已清空所有商品');
+  }
+
+  async function clearLog() {
+    const pwd = prompt('请输入权限密码：');
+    if (pwd !== ADMIN_PWD) return alert('密码错误');
+    if (!confirm('确认清空全部日志？不可恢复！')) return;
+    showLoading('清空中…');
+    await db.from('logs').delete().neq('id', 0);
+    hideLoading();
+    logData = []; currentLogList = []; logPage = 1; renderLog();
+    alert('日志已清空');
+  }
+
+  function exportStock() {
+    const list = stockData.filter(s => Number(s.stock) > 0);
+    if (!list.length) return alert('没有库存 > 0 的商品');
+    let csv = '商品编号,商品名称,当前库存,配件仓位,批发价,零售价,库存预警值,小计金额\n';
+    list.forEach(s => {
+      const sub = (s.stock * s.price).toFixed(2);
+      csv += `${s.code},${s.name},${formatQty(s.stock)},${s.position || ''},${s.price},${s.retail_price || 0},${s.warn || 0},${sub}\n`;
+    });
+    downloadFile(csv, '库存明细.csv');
+  }
+  function exportPurchase() {
+    const monthOut = calcMonthOutQty();
+    const rows = [];
+    stockData.forEach(s => {
+      const sug = round2((s.warn || 0) - s.stock);
+      if (sug <= 0) return;
+      rows.push(`${s.code},${s.name},${formatQty(s.stock)},${formatQty(s.warn || 0)},${formatQty(monthOut[s.code] || 0)},${formatQty(sug)}`);
+    });
+    if (!rows.length) return alert('无采购需求');
+    downloadFile('商品编号,商品名称,当前库存,库存预警值,月需求量,建议采购数量\n' + rows.join('\n'), '采购建议.csv');
+  }
+  function exportLog() {
+    let csv = '时间,操作类型,商品编号,商品名称,变动数量,序列编号\n';
+    logData.forEach(l => { csv += `${l.time},${l.type},${l.code},${l.name},${l.num},${l.seq || ''}\n`; });
+    downloadFile(csv, '操作日志.csv');
+  }
+  function downloadFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  ['npCode','npName','npPosition','npPrice','npRetailPrice','npWarn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewProduct(); });
+  });
+  ['epCode','epName','epPosition','epPrice','epRetailPrice','epWarn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') saveEditProduct(); });
+  });
+
+  document.getElementById('loadingMask').classList.add('hide');
+</script>
+</body>
+</html>
