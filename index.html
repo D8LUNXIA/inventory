@@ -69,7 +69,7 @@
   .btn-xs { padding: 4px 10px; font-size: 12px; }
   .checkbox-label { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2); color: var(--text-1); cursor: pointer; font-size: 13px; }
   .checkbox-label input { accent-color: var(--primary); }
-  .info-box { margin-left: auto; padding: 10px 14px; border-radius: 12px; border: 1px solid #f0d9a8; background: linear-gradient(135deg,#fff8e7,#fdf3e2); color: #8a5a00; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+  .info-box { padding: 10px 14px; border-radius: 12px; border: 1px solid #f0d9a8; background: linear-gradient(135deg,#fff8e7,#fdf3e2); color: #8a5a00; font-size: 13px; display: inline-flex; align-items: center; gap: 10px; }
   .info-box strong { color: #7a4a00; font-size: 15px; }
   .table-wrap { border-radius: 16px; border: 1px solid var(--line); background: var(--card); overflow: hidden; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -89,7 +89,6 @@
   @media (max-width: 900px) {
     .main-wrap { padding: 10px; }
     .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .info-box { margin-left: 0; width: 100%; }
     .btn { flex: 1; }
   }
 </style>
@@ -180,7 +179,8 @@
           <button class="btn btn-primary" onclick="document.getElementById('importStockFile').click()">导入库存</button>
           <button class="btn btn-success" onclick="openNewProduct()">+ 新建商品</button>
           <button class="btn btn-danger" onclick="clearAllStock()">清空所有商品</button>
-          <div class="info-box">本页金额：<strong id="totalAmount">0.00</strong></div>
+          <div class="info-box">库存总金额：<strong id="totalAmount">0.00</strong></div>
+          <div class="info-box">本页金额：<strong id="pageAmount">0.00</strong></div>
           <input type="file" id="importStockFile" accept=".csv" style="display:none" onchange="importStockFileHandler(event)" />
         </div>
         <div class="table-wrap">
@@ -326,8 +326,7 @@
   const PAGE_SIZE_BATCH = 30;
   const MAX_FETCH = 1000;
   let stockPage = 1, purchasePage = 1, inPage = 1, outPage = 1, logPage = 1;
-  let stockKeyword = '';   // 库存搜索关键词
-  let purchaseKeyword = ''; // 采购建议搜索关键词（预留）
+  let stockKeyword = '';
   let currentLogList = [];
   let batchInRows = [], batchOutRows = [];
   let inSeqCounter = 0, outSeqCounter = 0;
@@ -387,7 +386,6 @@
     return n.toFixed(2);
   }
   function escapeLike(s) {
-    // 转义 SQL like 通配符，避免用户输入 % _ 造成意外
     return String(s).replace(/[%_\\]/g, m => '\\' + m);
   }
   function findColumn(header, keys) {
@@ -412,9 +410,6 @@
   async function initSystem() {
     showLoading('正在加载数据…');
     try {
-      // 库存：不预加载，renderStock() 里实时查
-
-      // 日志：预加载前 1000 条
       const { data: logs, error: e2, count } = await db
         .from('logs').select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -423,7 +418,6 @@
       logData = logs || [];
       logTotalCount = count || 0;
 
-      // 序列号：全部加载（通常不会太多）
       const { data: seqs, error: e3 } = await db.from('used_seqs').select('*');
       if (e3) throw e3;
       usedSeqList = (seqs || []).filter(s => s.kind === 'in').map(s => s.seq);
@@ -493,7 +487,6 @@
 
     showLoading('正在加载库存…');
     try {
-      // 统计总数
       let countQuery = db.from('stock').select('id', { count: 'exact', head: true });
       if (kw) countQuery = countQuery.or(`code.ilike.%${escapeLike(kw)}%,name.ilike.%${escapeLike(kw)}%`);
       if (onlyStock) countQuery = countQuery.gt('stock', 0);
@@ -507,7 +500,6 @@
       const from = (stockPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      // 查询当前页
       let dataQuery = db.from('stock').select('*');
       if (kw) dataQuery = dataQuery.or(`code.ilike.%${escapeLike(kw)}%,name.ilike.%${escapeLike(kw)}%`);
       if (onlyStock) dataQuery = dataQuery.gt('stock', 0);
@@ -536,10 +528,18 @@
         tb.innerHTML = '<tr><td colspan="9" style="padding:20px;color:#7b89a8;">没有匹配的商品</td></tr>';
       }
 
-      document.getElementById('totalAmount').innerText = totalAmt.toFixed(2) + ' (本页)';
+      document.getElementById('pageAmount').innerText = totalAmt.toFixed(2);
       document.getElementById('stockPageInfo').innerText = `共${total}条，第${stockPage}/${maxPage}页`;
       document.getElementById('stockPrevBtn').disabled = stockPage <= 1;
       document.getElementById('stockNextBtn').disabled = stockPage >= maxPage;
+
+      // 库存总金额（全量，不受分页/搜索影响）
+      const { data: sumData, error: se } = await db.from('stock_summary').select('*').single();
+      if (!se && sumData) {
+        document.getElementById('totalAmount').innerText = Number(sumData.total_value).toFixed(2);
+      } else {
+        document.getElementById('totalAmount').innerText = '—';
+      }
     } catch (err) {
       tb.innerHTML = `<tr><td colspan="9" style="padding:20px;color:#e44d5c;">加载失败：${err.message}</td></tr>`;
     } finally {
@@ -587,7 +587,6 @@
     if (!name) { errDom.innerText = '商品名称不能为空'; return; }
 
     showLoading('保存中…');
-    // 实时查重
     const { data: dup } = await db.from('stock').select('id').eq('code', code).maybeSingle();
     if (dup) { hideLoading(); errDom.innerText = '商品编号已存在'; return; }
 
@@ -636,7 +635,6 @@
     if (!name) { errDom.innerText = '商品名称不能为空'; return; }
 
     showLoading('保存中…');
-    // 实时查重（排除自身）
     const { data: dup } = await db.from('stock').select('id').eq('code', code).neq('id', editingId).maybeSingle();
     if (dup) { hideLoading(); errDom.innerText = '编号已被其他商品使用'; return; }
 
@@ -837,7 +835,7 @@
   async function confirmBatchOut() {
     const now = new Date().toLocaleString();
     const successRows = [], failRows = [];
-    const snapshot = {}; // 懒加载：只在遇到某编号时查一次
+    const snapshot = {};
 
     showLoading('正在出库…');
     for (const r of batchOutRows) {
@@ -895,31 +893,7 @@
     logData = logs || []; currentLogList = logData; logPage = 1; renderLog();
   }
 
-  // ===== 采购建议（分页） =====
-  async function calcMonthOutQty() {
-    // 查本月所有出库日志
-    const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    const start = new Date(y, m, 1).toISOString();
-    const map = {};
-    let from = 0;
-    while (true) {
-      const { data, error } = await db.from('logs').select('code,num,time')
-        .lt('num', 0)
-        .gte('created_at', start)
-        .range(from, from + 999);
-      if (error) break;
-      if (!data || data.length === 0) break;
-      data.forEach(log => {
-        const code = log.code;
-        map[code] = round2((map[code] || 0) + Math.abs(log.num));
-      });
-      if (data.length < 1000) break;
-      from += 1000;
-    }
-    return map;
-  }
-
+  // ===== 采购建议（查视图，秒开） =====
   async function renderPurchase() {
     const tb = document.getElementById('purchaseTableBody');
     tb.innerHTML = '<tr><td colspan="6" style="padding:20px;color:#7b89a8;">正在加载…</td></tr>';
@@ -928,56 +902,47 @@
 
     showLoading('正在加载采购建议…');
     try {
-      const monthOut = await calcMonthOutQty();
+      let baseQ = db.from('purchase_suggestion').select('*', { count: 'exact' });
+      if (kw) baseQ = baseQ.or(`code.ilike.%${escapeLike(kw)}%,name.ilike.%${escapeLike(kw)}%`);
+      if (onlyNeed) baseQ = baseQ.gt('suggest', 0);
+      const { count, error: ce } = await baseQ;
+      if (ce) throw ce;
+      const total = count || 0;
 
-      // 查询库存（分页循环拉全部需要的商品）
-      let allStock = [];
-      let from = 0;
-      while (true) {
-        let q = db.from('stock').select('*');
-        if (kw) q = q.or(`code.ilike.%${escapeLike(kw)}%,name.ilike.%${escapeLike(kw)}%`);
-        const { data, error } = await q.range(from, from + 999);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allStock = allStock.concat(data);
-        if (data.length < 1000) break;
-        from += 1000;
-      }
-
-      const fullList = [];
-      allStock.forEach(item => {
-        const warnVal = Number(item.warn) || 0;
-        let sug = round2(warnVal - Number(item.stock));
-        if (sug < 0) sug = 0;
-        const mn = monthOut[item.code] || 0;
-        if (onlyNeed && sug <= 0) return;
-        fullList.push({ item, warnVal, sug, mn });
-      });
-
-      const total = fullList.length;
-      const maxPage = Math.ceil(total / PAGE_SIZE);
-      if (purchasePage > maxPage) purchasePage = maxPage || 1;
+      const maxPage = Math.ceil(total / PAGE_SIZE) || 1;
+      if (purchasePage > maxPage) purchasePage = maxPage;
       if (purchasePage < 1) purchasePage = 1;
-      const start = (purchasePage - 1) * PAGE_SIZE;
-      const pageData = fullList.slice(start, start + PAGE_SIZE);
+      const from = (purchasePage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let dataQ = db.from('purchase_suggestion').select('*');
+      if (kw) dataQ = dataQ.or(`code.ilike.%${escapeLike(kw)}%,name.ilike.%${escapeLike(kw)}%`);
+      if (onlyNeed) dataQ = dataQ.gt('suggest', 0);
+      const { data, error } = await dataQ.order('suggest', { ascending: false }).range(from, to);
+      if (error) throw error;
+
+      const codes = (data || []).map(d => d.code);
+      const monthOut = await getMonthOutFor(codes);
 
       tb.innerHTML = '';
-      pageData.forEach(row => {
-        const warnClass = (Number(row.item.stock) <= row.warnVal) ? 'warn' : '';
+      (data || []).forEach(item => {
+        const warnClass = (Number(item.stock) <= Number(item.warn)) ? 'warn' : '';
+        const mn = monthOut[item.code] || 0;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${row.item.code}</td><td>${row.item.name}</td>
-          <td class="${warnClass}">${formatQty(row.item.stock)}</td>
-          <td>${formatQty(row.warnVal)}</td>
-          <td>${formatQty(row.mn)}</td>
-          <td class="${warnClass}">${formatQty(row.sug)}</td>`;
+          <td>${item.code}</td>
+          <td>${item.name}</td>
+          <td class="${warnClass}">${formatQty(item.stock)}</td>
+          <td>${formatQty(item.warn)}</td>
+          <td>${formatQty(mn)}</td>
+          <td class="${warnClass}">${formatQty(item.suggest)}</td>`;
         tb.appendChild(tr);
       });
-      if (pageData.length === 0) {
-        tb.innerHTML = '<tr><td colspan="6" style="padding:20px;color:#7b89a8;">没有数据</td></tr>';
+      if (!data || data.length === 0) {
+        tb.innerHTML = '<tr><td colspan="6" style="padding:20px;color:#7b89a8;">没有采购需求</td></tr>';
       }
 
-      document.getElementById('purchasePageInfo').innerText = `共${total}条，第${purchasePage}/${maxPage || 1}页`;
+      document.getElementById('purchasePageInfo').innerText = `共${total}条，第${purchasePage}/${maxPage}页`;
       document.getElementById('purchasePrevBtn').disabled = purchasePage <= 1;
       document.getElementById('purchaseNextBtn').disabled = purchasePage >= maxPage;
     } catch (err) {
@@ -985,6 +950,33 @@
     } finally {
       hideLoading();
     }
+  }
+
+  async function getMonthOutFor(codes) {
+    if (!codes || codes.length === 0) return {};
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const map = {};
+    for (let i = 0; i < codes.length; i += 500) {
+      const chunk = codes.slice(i, i + 500);
+      let from = 0;
+      while (true) {
+        const { data, error } = await db.from('logs')
+          .select('code,num,time')
+          .in('code', chunk)
+          .lt('num', 0)
+          .gte('created_at', start)
+          .range(from, from + 999);
+        if (error) break;
+        if (!data || data.length === 0) break;
+        data.forEach(log => {
+          map[log.code] = round2((map[log.code] || 0) + Math.abs(log.num));
+        });
+        if (data.length < 1000) break;
+        from += 1000;
+      }
+    }
+    return map;
   }
 
   // ===== 日志 =====
@@ -1044,7 +1036,6 @@
       }
       if (!parsed.length) { alert('无有效数据'); e.target.value = ''; return; }
 
-      // 批量查商品
       showLoading('正在匹配商品…');
       const stockMap = {};
       const uniq = [...new Set(codes)];
@@ -1145,7 +1136,6 @@
       if (!arr.length) { alert('无有效数据'); e.target.value = ''; return; }
       showLoading('正在导入…');
       await db.from('stock').delete().neq('id', 0);
-      // 分批插入（每次 500 条）
       for (let i = 0; i < arr.length; i += 500) {
         const chunk = arr.slice(i, i + 500);
         const { error } = await db.from('stock').insert(chunk);
@@ -1220,25 +1210,28 @@
   async function exportPurchase() {
     showLoading('正在导出…');
     try {
-      const monthOut = await calcMonthOutQty();
-      let allStock = [];
+      let list = [];
       let from = 0;
       while (true) {
-        const { data, error } = await db.from('stock').select('*').range(from, from + 999);
+        const { data, error } = await db.from('purchase_suggestion').select('*')
+          .order('suggest', { ascending: false })
+          .range(from, from + 999);
         if (error) throw error;
         if (!data || data.length === 0) break;
-        allStock = allStock.concat(data);
+        list = list.concat(data);
         if (data.length < 1000) break;
         from += 1000;
       }
+      if (!list.length) { hideLoading(); return alert('无采购需求'); }
+
+      const codes = list.map(d => d.code);
+      const monthOut = await getMonthOutFor(codes);
       hideLoading();
-      const rows = [];
-      allStock.forEach(s => {
-        const sug = round2((s.warn || 0) - s.stock);
-        if (sug <= 0) return;
-        rows.push(`${s.code},${s.name},${formatQty(s.stock)},${formatQty(s.warn || 0)},${formatQty(monthOut[s.code] || 0)},${formatQty(sug)}`);
+
+      const rows = list.map(s => {
+        const mn = monthOut[s.code] || 0;
+        return `${s.code},${s.name},${formatQty(s.stock)},${formatQty(s.warn)},${formatQty(mn)},${formatQty(s.suggest)}`;
       });
-      if (!rows.length) return alert('无采购需求');
       downloadFile('商品编号,商品名称,当前库存,库存预警值,月需求量,建议采购数量\n' + rows.join('\n'), '采购建议.csv');
     } catch (err) {
       hideLoading();
